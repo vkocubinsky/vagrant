@@ -59,26 +59,36 @@ Vagrant.configure("2") do |config|
     vb.memory = "4096"
     vb.cpus = 2
   end
-  # View the documentation for the provider you are using for more
-  # information on available options.
 
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
-  # documentation for more information about their specific syntax and use.
+  config.vm.provision "docker"
+
+  # Configure remote access to the Docker daemon
+  # see https://docs.docker.com/config/daemon/remote-access/ 
+  # but make sytemd configuration automatically instead of use command
+  # `sudo systemctl edit docker.service`
+  config.vm.provision "shell", inline: <<-SHELL
+mkdir -p /etc/systemd/system/docker.service.d/
+echo "[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375" > /etc/systemd/system/docker.service.d/override.conf
+systemctl daemon-reload
+systemctl restart docker.service
+  SHELL
+
+  # There is an issue with virtualbox, after resume the VM continue form a time when the VM was suspended.
+  # But it is important to set actual time. So we restart NTP service after resume.
   config.vm.provision "shell", inline: <<-SHELL
      apt-get update
      apt-get install -y ntp
   SHELL
 
-  config.vm.provision "shell", inline: <<-SHELL
-    sudo update-alternatives --set editor /usr/bin/vim.tiny
-  SHELL
-
-  config.vm.provision "docker"
-
   config.trigger.after :resume do |trigger|
     trigger.info = "Restart NTP"
     trigger.run_remote = {inline: "bash -c 'systemctl restart ntp'"}
   end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    sudo update-alternatives --set editor /usr/bin/vim.tiny
+  SHELL
 
 end
